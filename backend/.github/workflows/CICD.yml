@@ -1,0 +1,239 @@
+name: CICD 
+
+on:
+  # main 브랜치로 push 또는 pull request 발생 시 실행
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Gradle 빌드 및 Docker 이미지 생성 작업
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 소스 코드 체크아웃
+      - name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 전체 히스토리를 가져오도록 설정
+        # GitHub 레포지토리에서 소스 코드를 가져옴.
+
+      # 2. JDK 21 설치
+      - name: Install JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+        # 빌드에 필요한 Java Development Kit(JDK)를 설치.
+
+      # 3. Gradle 설정 (의존성 캐싱 포함)
+      - name: Set up Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          cache-disabled: true
+          gradle-home-cache-includes: |
+            caches
+            wrapper
+        # 매번 의존성 다운로드 발생을 막아서 빌드 시간을 줄여줌.
+
+      # 4. Gradle 빌드 실행 (멀티모듈) - 빌드 속도 최적화 옵션 적용
+      - name: Build with Gradle (Multimodule)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean build -x test --parallel --build-cache --no-daemon -Dorg.gradle.jvmargs="-Xmx512m"
+        # 프로젝트를 Gradle로 빌드. 테스트는 제외하고 실행. (--parallel, --build-cache 사용으로 시간 줄이기)
+
+      # Docker 태그용 환경변수 설정
+      - name: Set TARGET_UPSTREAM Environment Variable
+        run: |
+          echo "TARGET_UPSTREAM=green" >> $GITHUB_ENV
+        # 초기 설정값이지만 배포 단계에서 실제 값으로 변경됨.
+
+      # 5. Docker Buildx 설정 (이미지 빌드 속도 및 캐싱 최적화)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # 6. DockerHub 로그인
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        # DockerHub에 로그인하여 이미지를 푸시할 수 있도록 인증.
+
+      # 7. Docker 이미지 빌드 및 푸시 (BuildKit 및 캐싱 활성화)
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: lemonlab0408/backend:${{ env.TARGET_UPSTREAM }}
+          no-cache: true
+
+  deploy:
+    # 배포 작업 (build 작업 완료 후 실행)
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 현재 배포 상태 확인 및 타겟 업스트림 설정
+      - name: Set target IP and upstream
+        run: |
+          if curl -o /dev/null -s -w "%{http_code}" "http://${{ secrets.LIVE_SERVER_IP }}/env" | grep 200; then
+            CURRENT_UPSTREAM=$(curl -s "http://${{ secrets.LIVE_SERVER_IP }}/env")
+          else
+            CURRENT_UPSTREAM=green
+          fi
+          TARGET_UPSTREAM=$([ "$CURRENT_UPSTREAM" == "blue" ] && echo "green" || echo "blue")
+          echo "TARGET_UPSTREAM=$TARGET_UPSTREAM" >> $GITHUB_ENV
+          echo "CURRENT_UPSTREAM=$CURRENT_UPSTREAM" >> $GITHUB_ENV
+        # 현재 활성화된 Nginx 업스트림(blue/green)을 확인하고, 새로운 배포 대상 설정.
+
+      # ✅ 네트워크가 없으면 생성하는 부분 추가 
+      - name: Create Network if not exists
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo docker network inspect backend-network >/dev/null 2>&1 || \
+            sudo docker network create backend-network
+
+      # 2. EC2에 환경 변수 파일 생성 부분 아래 script 수정 (CICD deploy job)
+      - name: Create .env file on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/deploy
+            cat <<EOF > /home/ubuntu/deploy/.env
+            DB_HOST=${{ secrets.POSTGRES_HOST }}
+            DB_PORT=5432
+            DB_NAME=${{ secrets.POSTGRES_DB }}
+            DB_USERNAME=${{ secrets.POSTGRES_USER }}
+            DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}
+            POSTGRES_PORT=5432
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            EOF
+            
+            sudo chown ubuntu:ubuntu /home/ubuntu/deploy/.env
+            sudo chmod 644 /home/ubuntu/deploy/.env
+
+      # 3. 새로운 컨테이너 배포 (docker-compose 사용)
+      - name: Deploy new containers (Multimodule)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Deploying to ${{ env.TARGET_UPSTREAM }}"
+            cd /home/ubuntu/deploy
+            if [ ! -f docker-compose-${{ env.TARGET_UPSTREAM }}.yml ]; then
+              echo "🚨 Error: docker-compose-${{ env.TARGET_UPSTREAM }}.yml not found!"
+              exit 1
+            fi
+      
+            # ✅ 최신 이미지 pull
+            sudo docker-compose -f docker-compose-${{ env.TARGET_UPSTREAM }}.yml pull app
+      
+            # ✅ 최신 이미지 강제 사용하여 컨테이너 재생성 (메모리 설정 추가)
+            sudo docker-compose -f docker-compose-${{ env.TARGET_UPSTREAM }}.yml --env-file /home/ubuntu/deploy/.env up -d --no-deps --force-recreate --pull always
+              
+      # 4. 새로운 배포의 Health Check
+      - name: Health check on new deployment
+        uses: jtalk/url-health-check-action@v3
+        with:
+          url: http://${{ secrets.LIVE_SERVER_IP }}:8080/swagger-ui/index.html
+          max-attempts: 5
+          retry-delay: 5s
+        # 새로운 컨테이너가 정상적으로 실행되는지 확인.
+
+      # 5. Nginx 업스트림 업데이트
+      - name: Update Nginx upstream
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Switching Nginx upstream to ${{ env.TARGET_UPSTREAM }}"
+            
+            # 1. nginx-server 컨테이너 존재 여부 확인 후 실행 (없으면 생성)
+            if [ ! "$(sudo docker ps -q -f name=nginx-server)" ]; then
+              if [ "$(sudo docker ps -aq -f name=nginx-server)" ]; then
+                echo "기존에 중지된 nginx-server 컨테이너가 있어서 삭제합니다."
+                sudo docker rm nginx-server
+              fi
+              
+              echo "nginx-server 컨테이너가 없어서 새로 실행합니다."
+              sudo docker run -d \
+                --name nginx-server \
+                -p 80:80 \
+                -v /home/ubuntu/nginx/conf.d:/etc/nginx/conf.d \
+                nginx
+            fi
+      
+            # 2. service-env.inc 파일 업데이트 (업스트림 변경)
+            echo "set \$service_url ${{ env.TARGET_UPSTREAM }};" | sudo tee /home/ubuntu/nginx/conf.d/service-env.inc
+      
+            # 3. Nginx 설정 테스트 후 적용
+            if sudo docker exec nginx-server nginx -t; then
+              echo "Nginx 설정 검증 성공. 변경사항을 반영합니다."
+              sudo docker restart nginx-server
+            else
+              echo "🚨 Nginx 설정 오류 발생! 기존 설정을 유지합니다."
+              exit 1
+            fi
+      
+            echo "✅ Nginx upstream 변경 완료: ${{ env.TARGET_UPSTREAM }}"
+              # Nginx 설정을 업데이트하여 새로운 업스트림 활성화.
+
+      # 6. 이전 컨테이너 정리
+      - name: Stop previous container
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            PREV_CONTAINER_ID=$(sudo docker ps -q --filter "name=${{ env.CURRENT_UPSTREAM }}" --filter "name!=nginx-server")
+            if [ -n "$PREV_CONTAINER_ID" ]; then
+              echo "Stopping old container: ${{ env.CURRENT_UPSTREAM }}"
+              sudo docker stop $PREV_CONTAINER_ID
+              sudo docker rm $PREV_CONTAINER_ID
+            else
+              echo "No previous container found. Skipping cleanup."
+            fi
+        # 이전 컨테이너를 종료하고 삭제하여 리소스 정리.
+
+      # 7. 현재 live 상태 업데이트 (AWS SSM Parameter Store)
+      - name: Update live-color in Parameter Store
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LIVE_SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Updating /team1/live-color to ${{ env.TARGET_UPSTREAM }}"
+            aws ssm put-parameter \
+              --name "/team1/live-color" \
+              --value "${{ env.TARGET_UPSTREAM }}" \
+              --type "String" \
+              --overwrite \
+              --region ap-northeast-2
+        # 현재 활성화된 서비스 색상 상태를 AWS SSM Parameter Store에 반영.

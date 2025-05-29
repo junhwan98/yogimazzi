@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: team1
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:team1}?reWriteBatchedInserts=true&preferQueryMode=simple
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    defer-datasource-initialization: true
+    show-sql: true
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 1000
+        order_inserts: true
+        order_updates: true
+        jdbc:
+          time_zone: Asia/Seoul
+
+  elasticsearch:
+    uris: ${ELASTIC_URI:http://localhost:9200}
+    username: ${ELASTIC_USERNAME:elastic}
+    password: ${ELASTIC_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+  jwt:
+    secret: ${JWT_SECRET}
+    refresh-secret: ${JWT_REFRESH_SECRET}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:600}
+    refresh-expiration-seconds: ${JWT_REFRESH_EXPIRATION_SECONDS:604800}
+
+  kafka:
+    bootstrap-servers: kafka-0:9092,kafka-1:9092,kafka-2:9092
+kakao:
+  api:
+    key: ${KAKAO_API_KEY}
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

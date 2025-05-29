@@ -1,0 +1,20 @@
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+}
+
+dependencies {
+    implementation project(":team1-common")
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+
+    testFixturesImplementation project(':team1-common')
+    testFixturesImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    testFixturesImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    testFixturesImplementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+
+}

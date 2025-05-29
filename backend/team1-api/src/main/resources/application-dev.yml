@@ -1,0 +1,9 @@
+spring:
+
+  datasource:
+    url: jdbc:postgresql://team1-db.czao8y8ca4p9.ap-northeast-2.rds.amazonaws.com:5432/team1_db
+    username: team1_master
+    password: postgresql1234!
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect

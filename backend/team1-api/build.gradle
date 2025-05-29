@@ -1,0 +1,37 @@
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = true
+}
+
+dependencies {
+    implementation project(':team1-infra')
+    implementation project(':team1-domain')
+    implementation project(':team1-common')
+
+    implementation 'org.json:json:20240303'
+    //swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3'
+
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    // jwt
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // monitoring
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    testFixturesImplementation project(':team1-infra')
+    testFixturesImplementation project(':team1-domain')
+    testFixturesImplementation project(':team1-common')
+    testFixturesImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+}

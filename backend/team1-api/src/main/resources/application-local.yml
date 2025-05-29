@@ -1,0 +1,7 @@
+spring:
+  kafka:
+    bootstrap-servers: 127.0.0.1:19092,127.0.0.1:19094,127.0.0.1:19096
+
+  jpa:
+    hibernate:
+      ddl-auto: update

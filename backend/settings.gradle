@@ -1,0 +1,7 @@
+rootProject.name = 'team1'
+include 'team1-api'
+include 'team1-common'
+include 'team1-domain'
+include 'team1-infra'
+
+
