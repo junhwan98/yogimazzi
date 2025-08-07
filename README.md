@@ -6,18 +6,17 @@
 
 - **프로젝트명**: 여기 맞지? (yogimazzi)
 - **진행 기간**: 2025.02.04 ~ 2025.02.21
-- **팀원**
-    - 송준환, 강요한, 박민준, 이정훈, 이지은
+- **팀원**: 송준환, 강요한, 박민준, 이정훈, 이지은
 
 ## ✨ 서비스 개요
 
-### 🎯목표
+### 🎯프로젝트 목표
 
-- 카카오 지도 API를 활용한 주소 데이터 정제 및 관리 API 구축
+- Kakao Maps API를 활용한 주소 정제 및 관리 API 구축
 - 구주소 → 신주소 자동 변환으로 데이터 정합성 확보
-- 사용자 편의성 향상을 위한 API 서비스 제공
-- 권한 분리 및 보안 기능 강화
-- 성능 개선 및 트래픽 대응 시스템 설계
+- 주소 변경 이력 추적 및 사용자 통계 제공
+- 관리자/사용자 권한 분리 및 인증 보안 강화
+- RESTful API 설계와 CI/CD 기반 자동 배포 환경 구축
 
 ### 🏅주요 성과
 
@@ -38,19 +37,16 @@
 <summary><strong>Kakao API 기반 주소 처리 기능 구현</strong></summary>
 
 **기술 스택**: Java, Spring Boot, Kakao Maps API, JPA
-
-**구현 내용**:
-
 - 유저 생성 시 입력 주소를 Kakao API를 통해 위도/경도 및 지번·도로명 주소로 변환
-- 응답 데이터는 `ObjectMapper`로 파싱하여 DTO(`KakaoApiAddressResponse`)로 매핑
-- 기존 주소가 있으면 재사용, 없을 경우만 새 Address 객체 생성
-- API 호출 실패 시 사용자 정의 예외 처리
-- 도메인 계층 리팩토링 및 모듈 분리
+- 응답 결과를 DTO로 매핑 후 도메인 객체로 저장
+- 중복 주소 검증 및 재사용 로직 구현 → DB 공간 효율화
+- 외부 API 호출 실패에 대비한 예외 핸들링 및 커스텀 예외 처리
+- 도메인 계층 리팩토링 및 Address 기능 모듈화
 
 **⚠️ 주요 이슈**
 
-- 주소 중복 저장 → 동일 주소 식별 후 재활용
-- 외부 API 실패 시 전체 흐름 중단 방지 → 커스텀 예외 및 fallback 처리
+- 동일 주소 중복 저장 → equals 및 DB 조회로 재사용 처리
+- 외부 API 실패 시 전체 흐름 중단 방지 → fallback 예외 설계
 
 </details>
 
@@ -58,11 +54,8 @@
 <summary><strong>시스템 모니터링 구축</strong></summary>
 
 **기술 스택**: Prometheus, Grafana, Spring Actuator
-
-**구현 내용**:
-
-- 어플리케이션 및 서버 상태 모니터링 대시보드 구축
-- 네트워킹 세션, 테이블 사용률 등 커스텀 메트릭 수집 및 시각화
+- Actuator 기반 metric 수집
+- Grafana 대시보드를 통해 실시간 서버 상태 확인 가능
 
 ![모니터링](assets/모니터링.png)
 </details>
@@ -72,7 +65,8 @@
 <summary><strong>ERD 설계 및 데이터 정규화</strong></summary>
 
 ![ERD](assets/ERD.png)
-
+- 고객, 주소, 주소 변경 이력(History) 구조로 설계
+- 3NF까지 정규화하여 데이터 중복 최소화 및 무결성 향상
 <details>
 <summary><strong>데이터 정규화 보고서</strong></summary>
 
@@ -338,7 +332,7 @@
 
 ## 🎬 주요 기능별 데모
 
-## 관리자 관련 기능
+## 👤 관리자 기능
 <details>
 <summary><strong>관리자 추가</strong></summary>
 
@@ -397,7 +391,7 @@
 
 
 
-## 유저 관련 기능
+## 👥 유저 기능
 
 <details>
 <summary><strong>유저 추가</strong></summary>
