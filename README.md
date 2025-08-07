@@ -26,10 +26,13 @@
 
 ### 🗃️ 사용 기술 스택
 
-- **Backend:** Java 21, Spring Boot, Spring Security, JPA, PostgreSQL
-- **Frontend:** React.js
-- **Infra:** AWS (EC2, RDS, S3, ALB, Route53), Docker, GitHub Actions
-- **ETC:** Kafka, Redis, Swagger, Jenkins, Elasticsearch
+| 구분       | 사용 기술                                                                 |
+|------------|--------------------------------------------------------------------------|
+| Backend    | Java 21, Spring Boot, Spring Security, JPA, PostgreSQL                  |
+| Frontend   | React.js                                                                 |
+| Infra      | AWS (EC2, RDS, S3, ALB, Route53), Docker, GitHub Actions                |
+| ETC        | Kafka, Redis, Swagger, Elasticsearch                           |
+
 
 ## 🧑‍💻 나의 역할
 
